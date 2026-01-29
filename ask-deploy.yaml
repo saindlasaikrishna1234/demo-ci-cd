@@ -1,0 +1,40 @@
+
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-springboot-deployment
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: AKS-migration-POC
+  template:
+    metadata:
+      labels:
+        app: AKS-migration-POC
+    spec:
+      containers:
+      - name: my-AKS-migration-POC
+        image: ACR entry/saindlasaikrishna1234/AKS-migration-POC:#{Build.BuildId}#
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 8085
+# service type loadbalancer       
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: AKS-migration-POC
+    k8s-app: AKS-migration-POC
+  name: AKS-migration-POC
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 8085
+  type: LoadBalancer
+  selector:
+    app: AKS-migration-POC

@@ -1,0 +1,184 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: AKS-migration-POC -deployment
+spec:
+  strategy:
+    type: Recreate
+  replicas: 1
+  selector:
+    matchLabels:
+      app: AKS-migration-POC
+  minReadySeconds: 5
+  template:
+    metadata:
+      labels:
+        app: AKS-migration-POC
+    spec:
+      containers:
+      - name: my AKS-migration-POC
+        image: AKS entrieswe should give.azurecr.io/AKS-migration-POC:v1
+        imagePullPolicy: Always
+        ports:
+        - name: http-common
+          containerPort: 80
+        resources:
+          limits:
+            memory: "1Gi"
+            cpu: "250m"
+          requests:
+            cpu: "20m"
+            memory: "1Gi"	
+        command: ["dotnet", "Sherlock_CommonAPI.dll"]        
+      - name: sherlock-afs-container
+        image: unipercontainerregistry.azurecr.io/sherlock-backend:v1
+        imagePullPolicy: Always
+        ports:
+        - name: http-afs
+          containerPort: 85
+        resources:
+          limits:
+            memory: "1Gi"
+            cpu: "250m"
+          requests:
+            cpu: "20m"
+            memory: "1Gi"
+        command: ["dotnet", "Sherlock_AFS.dll", "--urls", "http://0.0.0.0:85"]      
+      - name: sherlock-tdc-container
+        image: unipercontainerregistry.azurecr.io/sherlock-backend:v1
+        imagePullPolicy: Always
+        ports:
+        - name: http-tdc
+          containerPort: 90
+        resources:
+          limits:
+            memory: "2Gi"
+            cpu: "150m"
+          requests:
+            cpu: "20m"
+            memory: "1Gi"
+        command: ["dotnet", "Sherlock_TDC.dll", "--urls", "http://0.0.0.0:90"]   		
+      - name: sherlock-snow-container
+        image: unipercontainerregistry.azurecr.io/sherlock-backend:v1
+        imagePullPolicy: Always
+        ports:
+        - name: http-snow
+          containerPort: 95
+        resources:
+          limits:
+            memory: "1Gi"
+            cpu: "150m"
+          requests:
+            cpu: "20m"
+            memory: "1Gi"
+        command: ["dotnet", "Sherlock_SNOW.dll", "--urls", "http://0.0.0.0:95"]   
+      - name: sherlock-userstat-container
+        image: unipercontainerregistry.azurecr.io/sherlock-backend:v1
+        imagePullPolicy: Always
+        ports:
+        - name: http-userstat
+          containerPort: 100
+        resources:
+          limits:
+            memory: "1Gi"
+            cpu: "200m"
+          requests:
+            cpu: "20m"
+            memory: "1Gi"
+        command: ["dotnet", "Sherlock_CollectUserStatistics.dll", "--urls", "http://0.0.0.0:100"]   
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sherlock-service
+spec:
+  type: ClusterIP
+  ports:
+  - name: http-common
+    port: 80
+    targetPort: http-common 
+  - name: http-afs
+    port: 85
+    targetPort: http-afs
+  - name: http-tdc
+    port: 90
+    targetPort: http-tdc	
+  - name: http-snow
+    port: 95
+    targetPort: http-snow
+  - name: http-userstat
+    port: 100
+    targetPort: http-userstat	
+  selector:
+    app: sherlockapi
+
+---
+apiVersion: v1
+kind: Secret
+type: kubernetes.io/tls
+metadata:
+  name: sherlock-cert
+  namespace: sherlock-76987-dev
+data:
+   tls.crt: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tDQpNSUlHaGpDQ0JHNmdBd0lCQWdJVWNTZldLMUdDM0w4bWRxS05UamZJeEREMmVISXdEUVlKS29aSWh2Y05BUUVMDQpCUUF3U2pFTE1Ba0dBMVVFQmhNQ1JFVXhEekFOQmdOVkJBb01CbFZ1YVhCbGNqRXFNQ2dHQTFVRUF3d2hWVzVwDQpjR1Z5SUVsdWRHVnlibUZzSUVSbGRtbGpaWE1nVTNWaUlFTkJJRll4TUI0WERUSXhNVEl4TnpFeU16ZzBNbG9YDQpEVEkwTVRJeE56RXlORGd3TUZvd1hERUxNQWtHQTFVRUJoTUNSRVV4SERBYUJnTlZCQW9NRTFWdWFYQmxjaUJJDQpiMnhrYVc1bklFZHRZa2d4THpBdEJnTlZCQU1NSm5Ob1pYSnNiMk5yTFRjMk9UZzNMV1JsZGk1aGVuVnlaUzUxDQpibWx3WlhJdVpXNWxjbWQ1TUlJQklqQU5CZ2txaGtpRzl3MEJBUUVGQUFPQ0FROEFNSUlCQ2dLQ0FRRUFuVDBrDQpCRks2MVJKNjdJSjAySlVPSlp1L1ptNzd5QXovajJlanpKbDBxNkQ1c21uUytSSXU3am9aZlUzNkxtNkFWTkVrDQpwMTgwSWIrbmxhaUZzUHJXVVJXaDRqWlZqdVNLUjFJYVBPSGJIUTBqeWZyelFEeEhJZGh3WTdVNi92Ylg3Nk4yDQptZ1ByWGM4OHAydjFmV0hodG1BMWxlL0dpVVl2NUlwR3hVa2pWNEZBNlQxeFhRSWRXdGhEQ1FBOWFRTDF1SXFvDQpwdngrTElIbWUxOFpRNjZqQklhMnhwTHAwQmdGUS8rbHNTQlVPZ3dHMGx0K01aaFlGN0MyeHo2QW1SdllpKytGDQp0UXE2TFhPMlVsek5XZEFOdFBHY3B0TjRZK0hSd2I0dUJjdTZhRDhoYnFkWEwwc0haaWJQQXdRTG5mZDVBNi9qDQozQU9uVmNieDBRbmROakFsaHdJREFRQUJvNElDVURDQ0Frd3dEQVlEVlIwVEFRSC9CQUl3QURBZkJnTlZIU01FDQpHREFXZ0JUSEZsTnBCT1pra2szOFN6N0xaZmE4UHF2OU16Q0J1Z1lJS3dZQkJRVUhBUUVFZ2Ewd2dhb3dRQVlJDQpLd1lCQlFVSE1BS0dOR2gwZEhBNkx5OTNkM2N1ZEhKMWMzUTBaVzVsY21kNUxtTnZiUzl6YzJ4d2Eya3ZjWFl2DQpkVzVwYVc1MFkyRjJNUzVqY25Rd09nWUlLd1lCQlFVSE1BS0dMbWgwZEhBNkx5OTBjblZ6ZEM1eGRXOTJZV1JwDQpjMmRzYjJKaGJDNWpiMjB2ZFc1cGFXNTBZMkYyTVM1amNuUXdLZ1lJS3dZQkJRVUhNQUdHSG1oMGRIQTZMeTl2DQpZM053TG5GMWIzWmhaR2x6WjJ4dlltRnNMbU52YlRCUUJnTlZIUkVFU1RCSGdpWnphR1Z5Ykc5amF5MDNOams0DQpOeTFrWlhZdVlYcDFjbVV1ZFc1cGNHVnlMbVZ1WlhKbmVZSWRkVzF3Y21Od2NtOWtMbUY2ZFhKbExuVnVhWEJsDQpjaTVsYm1WeVoza3dTQVlEVlIwZ0JFRXdQekE5Qmd3ckJnRUVBYjVZQUFRQkFBRXdMVEFyQmdnckJnRUZCUWNDDQpBUllmYUhSMGNEb3ZMM2QzZHk1MGNuVnpkRFJsYm1WeVoza3VZMjl0TDNCcmFUQWRCZ05WSFNVRUZqQVVCZ2dyDQpCZ0VGQlFjREFnWUlLd1lCQlFVSEF3RXdkQVlEVlIwZkJHMHdhekExb0RPZ01ZWXZhSFIwY0RvdkwzQnJhV05rDQpjQzUxYm1sd1pYSmhjSEJ6TG1OdmJTOWpjbXd2ZFc1cGFXNTBZMkYyTVM1amNtd3dNcUF3b0M2R0xHaDBkSEE2DQpMeTlqY213dWNYVnZkbUZrYVhObmJHOWlZV3d1WTI5dEwzVnVhV2x1ZEdOaGRqRXVZM0pzTUIwR0ExVWREZ1FXDQpCQlNRU0hIb3RHaXFzYWllRDFKS21WTklHYmx3WWpBT0JnTlZIUThCQWY4RUJBTUNBNmd3RFFZSktvWklodmNODQpBUUVMQlFBRGdnSUJBSXYra29pTEVRYzhsTy9kZGd1dnlTdWxUaVdaQW80c252bnZCR3VWNS9BSUhTN3BmOFdMDQo3MFc3MUl1cG5TRFpkZUJnanh3STIyanpGUVUzSjdmOUFib1VSZ1ZQVi9QQkZBWXFaRDRZTFQwY2xPYnd6a1BIDQptYXVhYlBtRmdFQmd6dVFxWVdTQ0ZpNisybWRhSmZlbWlnZGlxakNseFA0MXd4UGZXN0tPU1djazBYWXAzempIDQo0eVdrMHhNK1NHTk9hMEdwNk9OcTVjbDJwMjZWYzJTdWUrQkl5dHVZNWJqVzhnQ2Y1MjFDYVAyRUtyM1Fabk9wDQo5ZXpwbC9aSmp5cjBFU0N2NmE0aVgvbi9RSDgyQkNyT04xQitCVDEwSFU4UHRUZStuQnBZMGxPazEySWlUbVVGDQpVU2FEVFZtY2VKWURaV2dVYWl1L29ORjBsalRtY002ZVN0bDBrV21zVHI4QnZYeUU4R08rakNkL1RRaTIyUktaDQptQVQvNndlcEsrY0Exa01ETXdndDdNL2cwdlFUQVI4d2RaOUR0MHkrZzRXcVJaZk5vUVlJMm5XYXJuV2xsN3RKDQplWk8zWXQ0MXdSTWxVT3JCNklOZ253YjhBZjBlVk1va3pRbDZ2dUlmTW4yZ0Q5R1p4OUdjZGJ4RndOTk4vWnRiDQpYcmJZa1RlNEU3SGJSeWxGMDlYcGdPRTdVNHhEMDFuRXhaL3VTVlRlUG5CTVZacWd6MktEM1YrcHFUTlJJVmlaDQpGOGwrZVJyRllxdS9yZnlPY2RIT1lsbW9FQUlxWE5XRFc5NWZ2aVhHeDlBRmJnVCtrS2xFUERid3MrcXNCM2lXDQpCZUlTRkpzd0J5QWsrOFRRS0dOcmErZVYzMXFTdmExMEhBSkhMMlp2WElFREpqdzNBL2dyTnp1bQ0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQ0K
+   tls.key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFb2dJQkFBS0NBUUVBblQwa0JGSzYxUko2N0lKMDJKVU9KWnUvWm03N3lBei9qMmVqekpsMHE2RDVzbW5TCitSSXU3am9aZlUzNkxtNkFWTkVrcDE4MEliK25sYWlGc1ByV1VSV2g0alpWanVTS1IxSWFQT0hiSFEwanlmcnoKUUR4SElkaHdZN1U2L3ZiWDc2TjJtZ1ByWGM4OHAydjFmV0hodG1BMWxlL0dpVVl2NUlwR3hVa2pWNEZBNlQxeApYUUlkV3RoRENRQTlhUUwxdUlxb3B2eCtMSUhtZTE4WlE2NmpCSWEyeHBMcDBCZ0ZRLytsc1NCVU9nd0cwbHQrCk1aaFlGN0MyeHo2QW1SdllpKytGdFFxNkxYTzJVbHpOV2RBTnRQR2NwdE40WStIUndiNHVCY3U2YUQ4aGJxZFgKTDBzSFppYlBBd1FMbmZkNUE2L2ozQU9uVmNieDBRbmROakFsaHdJREFRQUJBb0lCQUN1ZVBsT0VyNWRUM1EybQowc3NSN2k2NG1jdk1sY1BVOXovTXZEK1JnaS9xSTlvK1NPd1hBelhLb0MrR1poUmpTdTQ4WmpLWDBscGFWQjdMCjlPbzNheVJySDlFa3lXOHVMcjNDSk0wbXlpV3c4M0NnVU1KTTlsNkpNQVE0emZqVWVPcGRLaFZuYU85SkFjWmYKeUdYVHRVMW1PdmN3NEo1TC9oVWoxcVg3dC9ZWjBacWxMN3EyelNONXJoSFRDSlJ2N3dBSCszeEN4WDMzU2svVApIWEt2U29XOEtXczNzeTJUb2JlalgwNjkrVnVZVzhrODBCenlkbEtydDNXUnBqTTVLUnhaTUhyUGdQTzJwTVgzCjl6TTRhM090djlZcm9EMmsvK25mNStIbDN6WWVqSE9BSDV5c3RjTVhiZmNJdUJoZGdwMk5WMVdMWEJXNFRCWXMKc0xKS09JRUNnWUVBeW9RYWg4OThtL0xTVE1DWFFPajZ3OWVEQTBobWNmOC9RK3Q5Q1l2UWI0bzhHN3Q0VmlWMgpEbmd2KzNtOUtoS0J1R0xTRVN1T1gyNW9YUWViTnVPTXExMmZZK3VKTENaeHRJOEEzRVdGdW81SEV0NGp5RjdxCkExbmswTnc4Z1JaaGxZaklBZXp6VFlyVEVkdThzeWI4aVBLRjZVRTg0ak5qZ2JmS3VoeWppakVDZ1lFQXhzUGsKbzVrSVdoMkZaN3JLdTlpREtWL1ZURFBjQ1IvMDJHdjd5TWRuUjlwbXg4WlFnTWVMWXkxTHB3aEg5VDRhU0k0cgpaajFlNjdDK3hmMEVaWVdVTDB6UEluYUo1UExud0pYelJiRWJNdTV2cjB4RlFTY1ZkOHJ0ckRmWGF2RmExYlpFCjVwRnJXVzRZVE9zSFh6VmxBMlppb1Vtdm1PZE1KbVBQa21uaWhUY0NnWUFmUW16bDhiMEdSV0Q0di9HWTcxMWwKeFdwUG8ybE14MTE0bW16ZWdGcFlIVHBSL1lvQm9oNnE5UnBTOHVPa0R0OC9HdUhhREtNWlQrMkVEcHlDeUhUNgpMcVZmd3dlVmJRbTRHU3JFMVdaaStYczNDbHJ6bnRMNFdYUGNXV0p0ZW9ydGpnTnhhS1hWbmt3ZVFaRExCb1dNCmpnTGxrbEJYaWg4ZDhzUzBIWitRd1FLQmdHWGFWaHhiUEFOcG8wWHZXeG45TGVFU3dhdGwyN2cxVHZOa0NrYnQKbjRnYmE1V3RrdTBhMDl1RGg0UFZZNEpSUzRpb2lhYS9oaGVDbjQrM1F2eC9BZHRuSWJHSVNzc3VpZ0dQRlhVOQo5ekVYSzlZSllHZXRqbnV2V2pGcEFCTkdFSVQ0L0wrbC92dDV4aXdNTjkvYTdhTmJZT2xEYUI4VFQxdFF4RHBECjFoYnJBb0dBSTBsMWwyWHg1WmoyYWV4cTdLSEwrYVJBQlcxcUI4VEVjdmVLb09JeGZvaHhOZHhZMWZkNFJ3dWYKUVVvbWFkWlhSTHNnTDR4SG14VnJCOElBUVBQT0xmdmVseXNFakFOQjlDaFBkSFAzbVRVSDRTZXhkVlMrSHNMSQo3WXd2MjJZSm9qdHpUWFlLQ2FiQnZ4TTAyTGY0R3JPZElObERFVUtsN21BcndSV3BiaE09Ci0tLS0tRU5EIFJTQSBQUklWQVRFIEtFWS0tLS0tCg==
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sherlock-ingress
+  namespace: sherlock-76987-dev
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "64k"
+    appgw.ingress.kubernetes.io/backend-path-prefix: "/"
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, PUT, POST, DELETE, PATCH, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-credentials: "false"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "DNT, X-CustomHeader, Keep-Alive, User-Agent, X-Requested-With, If-Modified-Since,Cache-Control, Content-Type,Authorization"
+spec:
+  tls:
+    - hosts:
+      - sherlock-76987-dev.azure.uniper.energy
+      secretName: sherlock-cert
+  rules:    
+  - host: sherlock-76987-dev.azure.uniper.energy
+    http:
+      paths:
+      - path: /search(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: sherlock-service
+            port:
+              number: 80
+      - path: /afs(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: sherlock-service
+            port:
+              number: 85     
+      - path: /tdc(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: sherlock-service
+            port:
+              number: 90 		  
+      - path: /snow(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: sherlock-service
+            port:
+              number: 95 	
+      - path: /userstat(/|$)(.*)
+        pathType: Prefix
+        backend:
+          service:
+            name: sherlock-service
+            port:
+              number: 100 	
